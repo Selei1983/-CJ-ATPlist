@@ -1,8 +1,3 @@
-let appwrite = null;
-let currentProductData = null;
-let savedDocuments = [];
-let filteredDocuments = [];
-
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
@@ -35,20 +30,100 @@ function truncateText(text, maxLength = 200) {
   return text;
 }
 
+let appwrite = null;
+let currentProductData = null;
+let savedDocuments = [];
+let filteredDocuments = [];
+let isTestMode = false;
+
+function getAsinFromUrl(url) {
+  const patterns = [
+    /\/dp\/([A-Z0-9]{10})/,
+    /\/product\/([A-Z0-9]{10})/,
+    /[?&]asin=([A-Z0-9]{10})/
+  ];
+  
+  for (const pattern of patterns) {
+    const match = url.match(pattern);
+    if (match) {
+      return match[1];
+    }
+  }
+  return null;
+}
+
+async function loadTestModeData() {
+  const result = await chrome.storage.local.get(['testModeProductData', 'testModeSavedDocs']);
+  currentProductData = result.testModeProductData || null;
+  savedDocuments = result.testModeSavedDocs || [];
+  filteredDocuments = [...savedDocuments];
+  
+  console.log('[TEST MODE] Loading data from chrome.storage');
+  console.log('[TEST MODE] Current product data:', currentProductData);
+  console.log('[TEST MODE] Saved documents:', savedDocuments.length);
+  
+  if (currentProductData) {
+    render(currentProductData);
+  } else {
+    const content = document.getElementById('content');
+    content.innerHTML = '<div class="test-mode-banner">🧪 测试模式：商品数据为空</div>';
+    document.getElementById('downloadBtn').disabled = true;
+    document.getElementById('refreshBtn').disabled = true;
+    document.getElementById('saveBtn').disabled = true;
+  }
+  
+  renderSavedList();
+}
+
+async function saveTestModeMarkdown(asin, title, content, url, images) {
+  const newDoc = {
+    asin,
+    title,
+    content,
+    url,
+    images,
+    createdAt: new Date().toISOString()
+  };
+  
+  const result = await chrome.storage.local.get(['testModeSavedDocs']);
+  const docs = result.testModeSavedDocs || [];
+  docs.push(newDoc);
+  
+  await chrome.storage.local.set({ testModeSavedDocs: docs });
+  
+  console.log('[TEST MODE] Saved document:', asin);
+  return newDoc;
+}
+
+async function getTestModeMarkdowns() {
+  const result = await chrome.storage.local.get(['testModeSavedDocs']);
+  return result.testModeSavedDocs || [];
+}
+
+async function deleteTestModeMarkdown(asin) {
+  const result = await chrome.storage.local.get(['testModeSavedDocs']);
+  let docs = result.testModeSavedDocs || [];
+  docs = docs.filter(doc => doc.asin !== asin);
+  await chrome.storage.local.set({ testModeSavedDocs: docs });
+  console.log('[TEST MODE] Deleted document:', asin);
+}
+
 function render(data) {
   const content = document.getElementById('content');
   
   if (data.type === 'error') {
     content.innerHTML = `<div class="error">错误: ${escapeHtml(data.message)}</div>`;
     document.getElementById('downloadBtn').disabled = true;
-    document.getElementById('refreshBtn').disabled = false;
+    document.getElementById('refreshBtn').disabled = !isTestMode;
+    document.getElementById('saveBtn').disabled = !isTestMode;
     return;
   }
   
   if (data.type === 'unknown') {
     content.innerHTML = `<div class="empty-state">未识别页面类型或无商品信息。请确保在 Amazon 商品列表页或详情页使用。</div>`;
     document.getElementById('downloadBtn').disabled = true;
-    document.getElementById('refreshBtn').disabled = false;
+    document.getElementById('refreshBtn').disabled = !isTestMode;
+    document.getElementById('saveBtn').disabled = !isTestMode;
     return;
   }
   
@@ -56,7 +131,8 @@ function render(data) {
     if (!data.items || data.items.length === 0) {
       content.innerHTML = '<div class="empty-state">未找到商品信息</div>';
       document.getElementById('downloadBtn').disabled = true;
-      document.getElementById('refreshBtn').disabled = false;
+      document.getElementById('refreshBtn').disabled = !isTestMode;
+      document.getElementById('saveBtn').disabled = !isTestMode;
       return;
     }
     content.innerHTML = data.items.map(item => {
@@ -72,6 +148,7 @@ function render(data) {
     }).join('<hr class="divider">');
     document.getElementById('downloadBtn').disabled = false;
     document.getElementById('refreshBtn').disabled = false;
+    document.getElementById('saveBtn').disabled = !isTestMode;
     return;
   }
   
@@ -140,6 +217,7 @@ function render(data) {
     content.innerHTML = html;
     document.getElementById('downloadBtn').disabled = false;
     document.getElementById('refreshBtn').disabled = false;
+    document.getElementById('saveBtn').disabled = !isTestMode;
     return;
   }
 }
@@ -148,6 +226,7 @@ function showLoading(text = '正在加载...') {
   document.getElementById('content').innerHTML = `<div class="loading">${text}</div>`;
   document.getElementById('downloadBtn').disabled = true;
   document.getElementById('refreshBtn').disabled = true;
+  document.getElementById('saveBtn').disabled = true;
 }
 
 function toMarkdown(data) {
@@ -230,31 +309,49 @@ function showToast(message, type = 'info') {
 }
 
 async function initApp() {
-  try {
-    appwrite = await getAppwriteClient();
-    
-    const isLoggedIn = await appwrite.loadSession();
-    
-    if (isLoggedIn && appwrite.user) {
-      updateUIForLoggedIn();
-    } else {
+  const testModeCheckbox = document.getElementById('testMode');
+  isTestMode = testModeCheckbox ? testModeCheckbox.checked : false;
+  
+  console.log('[App] Test mode:', isTestMode);
+  
+  if (isTestMode) {
+    console.log('[App] Running in TEST MODE - Appwrite disabled');
+    await loadTestModeData();
+    updateUIForLoggedIn();
+  } else {
+    try {
+      appwrite = await getAppwriteClient();
+      
+      const isLoggedIn = await appwrite.loadSession();
+      
+      if (isLoggedIn && appwrite.user) {
+        updateUIForLoggedIn();
+      } else {
+        updateUIForLoggedOut();
+      }
+      
+      await loadProductData();
+    } catch (error) {
+      console.error('Failed to initialize app:', error);
       updateUIForLoggedOut();
     }
-    
-    await loadProductData();
-  } catch (error) {
-    console.error('Failed to initialize app:', error);
-    updateUIForLoggedOut();
   }
 }
 
 function updateUIForLoggedIn() {
   document.getElementById('authContainer').classList.add('hidden');
   document.getElementById('contentContainer').classList.remove('hidden');
-  document.getElementById('userName').textContent = appwrite.user.name || appwrite.user.email;
   document.getElementById('userInfo').classList.remove('hidden');
   
-  loadSavedDocuments();
+  if (appwrite && appwrite.user) {
+    document.getElementById('userName').textContent = appwrite.user.name || appwrite.user.email;
+  }
+  
+  if (!isTestMode) {
+    document.getElementById('userName').textContent += ' (测试模式)' : '';
+  }
+  
+  document.getElementById('userInfo').classList.remove('hidden');
 }
 
 function updateUIForLoggedOut() {
@@ -265,8 +362,7 @@ function updateUIForLoggedOut() {
 
 async function loadProductData() {
   const result = await chrome.storage.local.get(['productData', 'currentTabUrl']);
-  currentProductData = result.productData;
-  
+  currentProductData = result.productData;  
   if (currentProductData) {
     render(currentProductData);
   } else {
@@ -363,6 +459,13 @@ async function handleLogout() {
 }
 
 async function loadSavedDocuments() {
+  if (isTestMode) {
+    savedDocuments = await getTestModeMarkdowns();
+    filteredDocuments = [...savedDocuments];
+    renderSavedList();
+    return;
+  }
+  
   if (!appwrite || !appwrite.user) return;
   
   try {
@@ -375,37 +478,22 @@ async function loadSavedDocuments() {
   }
 }
 
-function renderSavedList() {
-  const listContainer = document.getElementById('savedList');
-  
-  if (filteredDocuments.length === 0) {
-    listContainer.innerHTML = '<div class="empty-state">暂无已保存的文档</div>';
-    return;
-  }
-  
-  listContainer.innerHTML = filteredDocuments.map(doc => `
-    <div class="saved-item" data-id="${doc.$id}">
-      <div class="saved-item-info">
-        <div class="saved-item-title" title="${escapeHtml(doc.title)}">${escapeHtml(doc.title)}</div>
-        <div class="saved-item-asin">ASIN: ${escapeHtml(doc.asin)}</div>
-      </div>
-      <div class="saved-item-actions">
-        <button class="action-icon-btn download-icon-btn" data-id="${doc.$id}">下载</button>
-        <button class="action-icon-btn delete-icon-btn" data-id="${doc.$id}">删除</button>
-      </div>
-    </div>
-  `).join('');
-}
-
 function filterSavedDocuments(query) {
   if (!query) {
     filteredDocuments = [...savedDocuments];
   } else {
     const lowerQuery = query.toLowerCase();
-    filteredDocuments = savedDocuments.filter(doc => 
-      doc.title.toLowerCase().includes(lowerQuery) ||
-      doc.asin.toLowerCase().includes(lowerQuery)
-    );
+    if (isTestMode) {
+      filteredDocuments = savedDocuments.filter(doc => 
+        doc.title.toLowerCase().includes(lowerQuery) ||
+        doc.asin.toLowerCase().includes(lowerQuery)
+      );
+    } else {
+      filteredDocuments = savedDocuments.filter(doc => 
+        doc.title && (doc.title.toLowerCase().includes(lowerQuery) ||
+        (doc.asin && doc.asin.toLowerCase().includes(lowerQuery)))
+      );
+    }
   }
   renderSavedList();
 }
@@ -443,9 +531,14 @@ async function handleSaveToCloud() {
       ? (currentProductData.item.images || []).map(img => img.url)
       : [];
     
-    await appwrite.saveMarkdown(asin, title, content, url, images);
+    if (isTestMode) {
+      await saveTestModeMarkdown(asin, title, content, url, images);
+      showToast('保存成功（测试模式）', 'success');
+    } else {
+      await appwrite.saveMarkdown(asin, title, content, url, images);
+      showToast('保存成功', 'success');
+    }
     
-    showToast('保存成功', 'success');
     await loadSavedDocuments();
   } catch (error) {
     console.error('Failed to save to cloud:', error);
@@ -457,17 +550,31 @@ async function handleSaveToCloud() {
 
 async function handleDownloadFromCloud(documentId) {
   try {
-    const doc = await appwrite.getDocument(documentId);
+    let content;
     
-    const blob = new Blob([doc.content], { type: 'text/markdown' });
+    if (isTestMode) {
+      const docs = await getTestModeMarkdowns();
+      const doc = docs.find(d => d.asin === documentId || d.$id === documentId);
+      if (doc) {
+        content = doc.content;
+        showToast('下载成功（测试模式）', 'success');
+      } else {
+        showToast('文档不存在', 'error');
+        return;
+      }
+    } else {
+      const doc = await appwrite.getDocument(documentId);
+      content = doc.content;
+      showToast('下载成功', 'success');
+    }
+    
+    const blob = new Blob([content], { type: 'text/markdown' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${doc.asin}.md`;
+    a.download = isTestMode ? `test_${documentId}.md` : `${documentId}.md`;
     a.click();
     URL.revokeObjectURL(url);
-    
-    showToast('下载成功', 'success');
   } catch (error) {
     console.error('Failed to download:', error);
     showToast('下载失败', 'error');
@@ -478,8 +585,14 @@ async function handleDeleteFromCloud(documentId) {
   if (!confirm('确定要删除这个文档吗？')) return;
   
   try {
-    await appwrite.deleteMarkdown(documentId);
-    showToast('删除成功', 'success');
+    if (isTestMode) {
+      await deleteTestModeMarkdown(documentId);
+      showToast('删除成功（测试模式）', 'success');
+    } else {
+      await appwrite.deleteMarkdown(documentId);
+      showToast('删除成功', 'success');
+    }
+    
     await loadSavedDocuments();
   } catch (error) {
     console.error('Failed to delete:', error);
@@ -551,3 +664,20 @@ chrome.storage.onChanged.addListener((changes) => {
     }
   }
 });
+
+document.getElementById('testMode').onchange = async () => {
+  isTestMode = document.getElementById('testMode').checked;
+  console.log('[App] Test mode changed:', isTestMode);
+  
+  if (isTestMode) {
+    console.log('[App] Switching to TEST MODE');
+    await loadTestModeData();
+  } else {
+    console.log('[App] Switching to NORMAL MODE');
+    const testDocs = await chrome.storage.local.get(['testModeSavedDocs']);
+    if (testDocs.testModeSavedDocs && testDocs.testModeSavedDocs.length > 0) {
+      console.log('[App] Warning: Switching to normal mode with test data');
+    }
+    await loadProductData();
+  }
+};
