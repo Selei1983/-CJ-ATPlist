@@ -1,0 +1,250 @@
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function isValidUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return parsed.protocol === 'https:' || parsed.protocol === 'http:';
+  } catch {
+    return false;
+  }
+}
+
+function getImageUrl(url) {
+  if (url) return url;
+  return 'data:image/svg+xml,' + encodeURIComponent(
+    '<svg width="80" height="80" xmlns="http://www.w3.org/2000/svg">' +
+    '<rect width="80" height="80" fill="#f5f5f5"/>' +
+    '<text x="40" y="45" text-anchor="middle" fill="#999" font-size="12">无图片</text></svg>'
+  );
+}
+
+function truncateText(text, maxLength = 200) {
+  if (!text) return '';
+  if (text.length > maxLength) {
+    return text.slice(0, maxLength) + '...';
+  }
+  return text;
+}
+
+function render(data) {
+  const content = document.getElementById('content');
+  
+  if (data.type === 'error') {
+    content.innerHTML = `<div class="error">错误: ${escapeHtml(data.message)}</div>`;
+    document.getElementById('downloadBtn').disabled = true;
+    document.getElementById('refreshBtn').disabled = false;
+    return;
+  }
+  
+  if (data.type === 'unknown') {
+    content.innerHTML = `<div class="empty-state">未识别页面类型或无商品信息。请确保在 Amazon 商品列表页或详情页使用。</div>`;
+    document.getElementById('downloadBtn').disabled = true;
+    document.getElementById('refreshBtn').disabled = false;
+    return;
+  }
+  
+  if (data.type === 'list') {
+    if (!data.items || data.items.length === 0) {
+      content.innerHTML = '<div class="empty-state">未找到商品信息</div>';
+      document.getElementById('downloadBtn').disabled = true;
+      document.getElementById('refreshBtn').disabled = false;
+      return;
+    }
+    content.innerHTML = data.items.map(item => {
+      const safeLink = isValidUrl(item.link) ? item.link : '#';
+      const displayTitle = escapeHtml(truncateText(item.title, 150));
+      return `<div class="product-item">
+        <img src="${getImageUrl(item.img)}" width="80" height="80" alt="${displayTitle}" />
+        <div class="product-info">
+          <a href="${escapeHtml(safeLink)}" target="_blank">${displayTitle}</a>
+          <div class="price">${escapeHtml(item.price)}</div>
+        </div>
+      </div>`;
+    }).join('<hr class="divider">');
+    document.getElementById('downloadBtn').disabled = false;
+    document.getElementById('refreshBtn').disabled = false;
+    return;
+  }
+  
+  if (data.type === 'detail') {
+    const item = data.item;
+    const displayTitle = escapeHtml(truncateText(item.title, 200));
+    
+    let html = `<div class="product-detail">
+      <h3>${displayTitle}</h3>
+      <div class="price">${escapeHtml(item.price)}</div>`;
+    
+    if (item.images && item.images.length > 0) {
+      html += `<div class="section"><strong>商品图片 (${item.images.length}):</strong><div class="image-gallery">`;
+      item.images.forEach(img => {
+        const imgLabel = img.type === 'main' ? '主图' : img.type;
+        html += `<div class="image-item">
+          <img src="${getImageUrl(img.url)}" width="60" height="60" alt="${escapeHtml(imgLabel)}" />
+          <span class="image-label">${escapeHtml(imgLabel)}</span>
+        </div>`;
+      });
+      html += `</div></div>`;
+    }
+    
+    if (item.videos && item.videos.length > 0) {
+      html += `<div class="section"><strong>商品视频 (${item.videos.length}):</strong><ul class="video-list">`;
+      item.videos.forEach(video => {
+        html += `<li><a href="${escapeHtml(video.url)}" target="_blank">${video.thumbnail ? '视频缩略图' : '视频链接'}</a></li>`;
+      });
+      html += `</ul></div>`;
+    }
+    
+    if (item.bulletPoints && item.bulletPoints.length > 0) {
+      html += `<div class="section"><strong>核心卖点:</strong><ul>${item.bulletPoints.map(p => `<li>${escapeHtml(p)}</li>`).join('')}</ul></div>`;
+    }
+    
+    if (item.productDetails && item.productDetails.length > 0) {
+      html += `<div class="section"><strong>商品信息 (${item.productDetails.length}):</strong><div class="product-details-table">`;
+      item.productDetails.forEach(detail => {
+        html += `<div class="detail-row">
+          <span class="detail-label">${escapeHtml(detail.label)}</span>
+          <span class="detail-value">${escapeHtml(detail.value)}</span>
+        </div>`;
+      });
+      html += `</div></div>`;
+    }
+    
+    if (item.reviews && item.reviews.length > 0) {
+      html += `<div class="section"><strong>买家评论 (${item.reviews.length}):</strong><div class="reviews">`;
+      item.reviews.forEach(review => {
+        html += `<div class="review-item">
+          <div class="review-header">
+            <strong>${escapeHtml(review.reviewer || '匿名用户')}</strong>
+            <span class="rating">${escapeHtml(review.rating)}</span>
+          </div>
+          <div class="review-title">${escapeHtml(review.title)}</div>
+          <div class="review-date">${escapeHtml(review.date)}</div>
+          ${review.verified ? `<div class="verified">${escapeHtml(review.verified)}</div>` : ''}
+          <div class="review-content">${escapeHtml(review.content)}</div>
+          ${review.helpful ? `<div class="review-helpful">${escapeHtml(review.helpful)}</div>` : ''}
+        </div>`;
+      });
+      html += `</div></div>`;
+    }
+    
+    html += `</div>`;
+    content.innerHTML = html;
+    document.getElementById('downloadBtn').disabled = false;
+    document.getElementById('refreshBtn').disabled = false;
+    return;
+  }
+}
+
+function showLoading() {
+  document.getElementById('content').innerHTML = '<div class="loading">正在加载...</div>';
+  document.getElementById('downloadBtn').disabled = true;
+  document.getElementById('refreshBtn').disabled = true;
+}
+
+function toMarkdown(data) {
+  if (data.type === 'list') {
+    return data.items.map(item =>
+      `![商品图片](${item.img})  
+[${item.title}](${item.link})  
+价格: ${item.price}\n`
+    ).join('\n---\n');
+  } else if (data.type === 'detail') {
+    const item = data.item;
+    let md = `# ${item.title}
+ 价格: ${item.price}
+  
+ ## 核心卖点
+ ${item.bulletPoints.map(p => `- ${p}`).join('\n')}
+ `;
+    
+    if (item.productDetails && item.productDetails.length > 0) {
+      md += `\n## 商品信息\n\n`;
+      item.productDetails.forEach(detail => {
+        md += `- **${detail.label}**: ${detail.value}\n`;
+      });
+    }
+    
+    if (item.images && item.images.length > 0) {
+      md += `\n## 商品图片\n`;
+      item.images.forEach((img, i) => {
+        const label = img.type === 'main' ? '主图' : `${img.type} ${i}`;
+        md += `![${label}](${img.url})\n`;
+      });
+    }
+    
+    if (item.videos && item.videos.length > 0) {
+      md += `\n## 商品视频\n`;
+      item.videos.forEach((video, i) => {
+        md += `- [视频${i + 1}](${video.url})\n`;
+      });
+    }
+    
+    if (item.reviews && item.reviews.length > 0) {
+      md += `\n## 买家评论\n\n`;
+      item.reviews.forEach((review, i) => {
+        md += `### 评论 ${i + 1}\n`;
+        if (review.reviewer) md += `- 评论者: ${review.reviewer}\n`;
+        if (review.rating) md += `- 评分: ${review.rating}\n`;
+        if (review.title) md += `- 标题: ${review.title}\n`;
+        if (review.date) md += `- 日期: ${review.date}\n`;
+        if (review.verified) md += `- ${review.verified}\n`;
+        md += `- 内容: ${review.content}\n`;
+        if (review.helpful) md += `- ${review.helpful}\n`;
+        md += '\n';
+      });
+    }
+    
+    return md;
+  }
+  return '无数据';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  showLoading();
+  chrome.storage.local.get(['productData'], (result) => {
+    if (result.productData) {
+      render(result.productData);
+    } else {
+      fetchNewData();
+    }
+  });
+});
+
+function fetchNewData() {
+  showLoading();
+  chrome.runtime.sendMessage({ action: 'fetchData' });
+}
+
+document.getElementById('refreshBtn').onclick = function() {
+  fetchNewData();
+};
+
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.productData) {
+    render(changes.productData.newValue);
+  }
+});
+
+document.getElementById('downloadBtn').onclick = function() {
+  chrome.storage.local.get(['productData'], (result) => {
+    const data = result.productData;
+    if (!data || (data.type === 'list' && !data.items?.length) || (data.type === 'detail' && !data.item?.title)) {
+      alert('没有可导出的数据');
+      return;
+    }
+    
+    const md = toMarkdown(data);
+    const timestamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+    const blob = new Blob([md], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `商品信息_${timestamp}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+};
