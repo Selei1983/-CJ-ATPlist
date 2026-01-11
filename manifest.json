@@ -8,10 +8,6 @@
     "https://www.amazon.com/*",
     "https://appwrite.shumitech.com/*"
   ],
-  "web_accessible_resources": [{
-    "resources": ["config/appwrite.json"],
-    "matches": ["<all_urls>"]
-  }],
   "icons": {
     "16": "assets/icons/icon16.png",
     "48": "assets/icons/icon48.png",
