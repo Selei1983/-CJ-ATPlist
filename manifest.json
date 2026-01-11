@@ -1,12 +1,17 @@
 {
   "manifest_version": 3,
   "name": "Amazon 商品信息导出",
-  "version": "1.0",
-  "description": "分析 Amazon 商品页面并导出为 Markdown 文件",
+  "version": "2.0",
+  "description": "分析 Amazon 商品页面并导出为 Markdown 文件，支持云端存储",
   "permissions": ["scripting", "activeTab", "sidePanel", "storage"],
   "host_permissions": [
-    "https://www.amazon.com/*"
+    "https://www.amazon.com/*",
+    "https://appwrite.shumitech.com/*"
   ],
+  "web_accessible_resources": [{
+    "resources": ["config/appwrite.json"],
+    "matches": ["<all_urls>"]
+  }],
   "icons": {
     "16": "assets/icons/icon16.png",
     "48": "assets/icons/icon48.png",

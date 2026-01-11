@@ -7,11 +7,85 @@
 </head>
 <body>
   <div id="app">
-    <h2>商品信息导出</h2>
-    <div id="content"></div>
-    <button id="refreshBtn">刷新数据</button>
-    <button id="downloadBtn">下载 Markdown</button>
+    <div class="header">
+      <h2>Amazon 商品信息导出</h2>
+      <div id="userInfo" class="hidden">
+        <span id="userName"></span>
+        <button id="logoutBtn" class="logout-btn">退出</button>
+      </div>
+    </div>
+
+    <!-- 未登录界面 -->
+    <div id="authContainer" class="auth-container">
+      <div class="auth-tabs">
+        <button class="tab-btn active" data-tab="login">登录</button>
+        <button class="tab-btn" data-tab="register">注册</button>
+      </div>
+      
+      <!-- 登录表单 -->
+      <div id="loginForm" class="auth-form active">
+        <div class="form-group">
+          <label>邮箱</label>
+          <input type="email" id="loginEmail" placeholder="请输入邮箱">
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input type="password" id="loginPassword" placeholder="请输入密码">
+        </div>
+        <button id="loginBtn" class="auth-btn">登录</button>
+        <p class="auth-tip">登录后可保存到云端</p>
+      </div>
+      
+      <!-- 注册表单 -->
+      <div id="registerForm" class="auth-form">
+        <div class="form-group">
+          <label>姓名</label>
+          <input type="text" id="registerName" placeholder="请输入姓名">
+        </div>
+        <div class="form-group">
+          <label>邮箱</label>
+          <input type="email" id="registerEmail" placeholder="请输入邮箱">
+        </div>
+        <div class="form-group">
+          <label>密码</label>
+          <input type="password" id="registerPassword" placeholder="请输入密码（至少8位）">
+        </div>
+        <button id="registerBtn" class="auth-btn">注册</button>
+      </div>
+      
+      <div id="authError" class="error-message hidden"></div>
+    </div>
+
+    <!-- 已登录 - 商品信息 -->
+    <div id="contentContainer" class="hidden">
+      <div id="content"></div>
+      
+      <div class="action-buttons">
+        <button id="refreshBtn">刷新数据</button>
+        <button id="downloadBtn">下载 Markdown</button>
+        <button id="saveBtn" class="save-btn">☁️ 保存到云端</button>
+      </div>
+      
+      <!-- 已保存文档列表 -->
+      <div class="saved-section">
+        <h3>📚 已保存的文档</h3>
+        <input type="text" id="searchInput" class="search-input" placeholder="搜索标题或ASIN...">
+        <div id="savedList" class="saved-list"></div>
+        <button id="loadMoreBtn" class="load-more-btn hidden">加载更多</button>
+      </div>
+    </div>
   </div>
+  
+  <!-- 加载遮罩 -->
+  <div id="loadingOverlay" class="loading-overlay hidden">
+    <div class="loading-spinner"></div>
+    <div id="loadingText" class="loading-text">正在加载...</div>
+  </div>
+  
+  <!-- Toast 提示 -->
+  <div id="toast" class="toast hidden"></div>
+  
+  <script src="scripts/appwrite.js"></script>
   <script src="sidebar.js"></script>
 </body>
 </html>

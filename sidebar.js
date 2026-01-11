@@ -1,3 +1,8 @@
+let appwrite = null;
+let currentProductData = null;
+let savedDocuments = [];
+let filteredDocuments = [];
+
 function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
@@ -139,8 +144,8 @@ function render(data) {
   }
 }
 
-function showLoading() {
-  document.getElementById('content').innerHTML = '<div class="loading">正在加载...</div>';
+function showLoading(text = '正在加载...') {
+  document.getElementById('content').innerHTML = `<div class="loading">${text}</div>`;
   document.getElementById('downloadBtn').disabled = true;
   document.getElementById('refreshBtn').disabled = true;
 }
@@ -150,13 +155,13 @@ function toMarkdown(data) {
     return data.items.map(item =>
       `![商品图片](${item.img})  
 [${item.title}](${item.link})  
-价格: ${item.price}\n`
+ 价格: ${item.price}\n`
     ).join('\n---\n');
   } else if (data.type === 'detail') {
     const item = data.item;
     let md = `# ${item.title}
  价格: ${item.price}
-  
+ 
  ## 核心卖点
  ${item.bulletPoints.map(p => `- ${p}`).join('\n')}
  `;
@@ -203,33 +208,286 @@ function toMarkdown(data) {
   return '无数据';
 }
 
-document.addEventListener('DOMContentLoaded', () => {
-  showLoading();
-  chrome.storage.local.get(['productData'], (result) => {
-    if (result.productData) {
-      render(result.productData);
-    } else {
-      fetchNewData();
-    }
-  });
-});
-
-function fetchNewData() {
-  showLoading();
-  chrome.runtime.sendMessage({ action: 'fetchData' });
+function showLoadingOverlay(text = '正在处理...') {
+  const overlay = document.getElementById('loadingOverlay');
+  document.getElementById('loadingText').textContent = text;
+  overlay.classList.remove('hidden');
 }
 
-document.getElementById('refreshBtn').onclick = function() {
-  fetchNewData();
-};
+function hideLoadingOverlay() {
+  document.getElementById('loadingOverlay').classList.add('hidden');
+}
 
-chrome.storage.onChanged.addListener((changes) => {
-  if (changes.productData) {
-    render(changes.productData.newValue);
+function showToast(message, type = 'info') {
+  const toast = document.getElementById('toast');
+  toast.textContent = message;
+  toast.className = `toast ${type}`;
+  toast.classList.remove('hidden');
+  
+  setTimeout(() => {
+    toast.classList.add('hidden');
+  }, 3000);
+}
+
+async function initApp() {
+  try {
+    appwrite = await getAppwriteClient();
+    
+    const isLoggedIn = await appwrite.loadSession();
+    
+    if (isLoggedIn && appwrite.user) {
+      updateUIForLoggedIn();
+    } else {
+      updateUIForLoggedOut();
+    }
+    
+    await loadProductData();
+  } catch (error) {
+    console.error('Failed to initialize app:', error);
+    updateUIForLoggedOut();
   }
-});
+}
 
-document.getElementById('downloadBtn').onclick = function() {
+function updateUIForLoggedIn() {
+  document.getElementById('authContainer').classList.add('hidden');
+  document.getElementById('contentContainer').classList.remove('hidden');
+  document.getElementById('userName').textContent = appwrite.user.name || appwrite.user.email;
+  document.getElementById('userInfo').classList.remove('hidden');
+  
+  loadSavedDocuments();
+}
+
+function updateUIForLoggedOut() {
+  document.getElementById('authContainer').classList.remove('hidden');
+  document.getElementById('contentContainer').classList.add('hidden');
+  document.getElementById('userInfo').classList.add('hidden');
+}
+
+async function loadProductData() {
+  const result = await chrome.storage.local.get(['productData', 'currentTabUrl']);
+  currentProductData = result.productData;
+  
+  if (currentProductData) {
+    render(currentProductData);
+  } else {
+    await fetchNewData();
+  }
+}
+
+async function fetchNewData() {
+  showLoading('正在获取商品数据...');
+  
+  try {
+    chrome.tabs.query({ active: true, currentWindow: true }, async (tabs) => {
+      if (tabs[0]) {
+        currentProductData = null;
+        await chrome.runtime.sendMessage({ action: 'fetchData' });
+      }
+    });
+  } catch (error) {
+    console.error('Failed to fetch data:', error);
+    showToast('获取数据失败', 'error');
+    showLoading('请刷新页面');
+  }
+}
+
+async function handleLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  
+  if (!email || !password) {
+    showToast('请填写邮箱和密码', 'error');
+    return;
+  }
+  
+  showLoadingOverlay('正在登录...');
+  
+  try {
+    await appwrite.createEmailSession(email, password);
+    showToast('登录成功', 'success');
+    updateUIForLoggedIn();
+    loadSavedDocuments();
+  } catch (error) {
+    console.error('Login failed:', error);
+    showToast(error.message || '登录失败，请检查邮箱和密码', 'error');
+  } finally {
+    hideLoadingOverlay();
+  }
+}
+
+async function handleRegister() {
+  const name = document.getElementById('registerName').value.trim();
+  const email = document.getElementById('registerEmail').value.trim();
+  const password = document.getElementById('registerPassword').value;
+  
+  if (!name || !email || !password) {
+    showToast('请填写所有字段', 'error');
+    return;
+  }
+  
+  if (password.length < 8) {
+    showToast('密码至少需要8位', 'error');
+    return;
+  }
+  
+  showLoadingOverlay('正在注册...');
+  
+  try {
+    await appwrite.createAccount(email, password, name);
+    showToast('注册成功', 'success');
+    updateUIForLoggedIn();
+    loadSavedDocuments();
+  } catch (error) {
+    console.error('Registration failed:', error);
+    showToast(error.message || '注册失败，请重试', 'error');
+  } finally {
+    hideLoadingOverlay();
+  }
+}
+
+async function handleLogout() {
+  if (!confirm('确定要退出登录吗？')) return;
+  
+  showLoadingOverlay('正在退出...');
+  
+  try {
+    await appwrite.deleteSession();
+    showToast('已退出登录', 'info');
+    updateUIForLoggedOut();
+  } catch (error) {
+    console.error('Logout failed:', error);
+    showToast('退出失败', 'error');
+  } finally {
+    hideLoadingOverlay();
+  }
+}
+
+async function loadSavedDocuments() {
+  if (!appwrite || !appwrite.user) return;
+  
+  try {
+    savedDocuments = await appwrite.getUserMarkdowns();
+    filteredDocuments = [...savedDocuments];
+    renderSavedList();
+  } catch (error) {
+    console.error('Failed to load saved documents:', error);
+    showToast('加载已保存文档失败', 'error');
+  }
+}
+
+function renderSavedList() {
+  const listContainer = document.getElementById('savedList');
+  
+  if (filteredDocuments.length === 0) {
+    listContainer.innerHTML = '<div class="empty-state">暂无已保存的文档</div>';
+    return;
+  }
+  
+  listContainer.innerHTML = filteredDocuments.map(doc => `
+    <div class="saved-item" data-id="${doc.$id}">
+      <div class="saved-item-info">
+        <div class="saved-item-title" title="${escapeHtml(doc.title)}">${escapeHtml(doc.title)}</div>
+        <div class="saved-item-asin">ASIN: ${escapeHtml(doc.asin)}</div>
+      </div>
+      <div class="saved-item-actions">
+        <button class="action-icon-btn download-icon-btn" data-id="${doc.$id}">下载</button>
+        <button class="action-icon-btn delete-icon-btn" data-id="${doc.$id}">删除</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+function filterSavedDocuments(query) {
+  if (!query) {
+    filteredDocuments = [...savedDocuments];
+  } else {
+    const lowerQuery = query.toLowerCase();
+    filteredDocuments = savedDocuments.filter(doc => 
+      doc.title.toLowerCase().includes(lowerQuery) ||
+      doc.asin.toLowerCase().includes(lowerQuery)
+    );
+  }
+  renderSavedList();
+}
+
+async function handleSaveToCloud() {
+  if (!currentProductData) {
+    showToast('请先获取商品数据', 'error');
+    return;
+  }
+  
+  const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+  const url = tabs[0]?.url;
+  
+  if (!url) {
+    showToast('无法获取当前页面URL', 'error');
+    return;
+  }
+  
+  const asin = getAsinFromUrl(url);
+  
+  if (!asin) {
+    showToast('无法从URL提取ASIN', 'error');
+    return;
+  }
+  
+  showLoadingOverlay('正在保存到云端...');
+  
+  try {
+    const title = currentProductData.type === 'detail' 
+      ? currentProductData.item.title 
+      : `商品列表_${new Date().toLocaleDateString()}`;
+    
+    const content = toMarkdown(currentProductData);
+    const images = currentProductData.type === 'detail' 
+      ? (currentProductData.item.images || []).map(img => img.url)
+      : [];
+    
+    await appwrite.saveMarkdown(asin, title, content, url, images);
+    
+    showToast('保存成功', 'success');
+    await loadSavedDocuments();
+  } catch (error) {
+    console.error('Failed to save to cloud:', error);
+    showToast(error.message || '保存失败，请重试', 'error');
+  } finally {
+    hideLoadingOverlay();
+  }
+}
+
+async function handleDownloadFromCloud(documentId) {
+  try {
+    const doc = await appwrite.getDocument(documentId);
+    
+    const blob = new Blob([doc.content], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${doc.asin}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    showToast('下载成功', 'success');
+  } catch (error) {
+    console.error('Failed to download:', error);
+    showToast('下载失败', 'error');
+  }
+}
+
+async function handleDeleteFromCloud(documentId) {
+  if (!confirm('确定要删除这个文档吗？')) return;
+  
+  try {
+    await appwrite.deleteMarkdown(documentId);
+    showToast('删除成功', 'success');
+    await loadSavedDocuments();
+  } catch (error) {
+    console.error('Failed to delete:', error);
+    showToast('删除失败', 'error');
+  }
+}
+
+async function handleDownload() {
   chrome.storage.local.get(['productData'], (result) => {
     const data = result.productData;
     if (!data || (data.type === 'list' && !data.items?.length) || (data.type === 'detail' && !data.item?.title)) {
@@ -247,4 +505,49 @@ document.getElementById('downloadBtn').onclick = function() {
     a.click();
     URL.revokeObjectURL(url);
   });
+}
+
+function handleTabSwitch(tabName) {
+  document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+  document.querySelectorAll('.auth-form').forEach(form => form.classList.remove('active'));
+  
+  document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+  document.getElementById(`${tabName}Form`).classList.add('active');
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await initApp();
+});
+
+document.getElementById('loginBtn').onclick = handleLogin;
+document.getElementById('registerBtn').onclick = handleRegister;
+document.getElementById('logoutBtn').onclick = handleLogout;
+
+document.getElementById('refreshBtn').onclick = fetchNewData;
+document.getElementById('downloadBtn').onclick = handleDownload;
+document.getElementById('saveBtn').onclick = handleSaveToCloud;
+
+document.getElementById('searchInput').oninput = (e) => {
+  filterSavedDocuments(e.target.value);
 };
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.onclick = () => handleTabSwitch(btn.dataset.tab);
+});
+
+document.getElementById('savedList').onclick = (e) => {
+  if (e.target.classList.contains('download-icon-btn')) {
+    handleDownloadFromCloud(e.target.dataset.id);
+  } else if (e.target.classList.contains('delete-icon-btn')) {
+    handleDeleteFromCloud(e.target.dataset.id);
+  }
+};
+
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.productData) {
+    currentProductData = changes.productData.newValue;
+    if (currentProductData) {
+      render(currentProductData);
+    }
+  }
+});
