@@ -1,10 +1,10 @@
 class AppwriteClient {
-  constructor(config) {
-    this.endpoint = config.endpoint;
-    this.projectId = config.projectId;
-    this.apiKey = config.apiKey;
-    this.databaseId = config.databaseId;
-    this.collectionId = config.collectionId;
+  constructor() {
+    this.endpoint = "https://appwrite.shumitech.com/v1";
+    this.projectId = "6963a6d10023ddbd0b80";
+    this.apiKey = "standard_b1e50575abbea876f3e1089e9fe9d78a1743e30ff4625c4f251488ade418f54f8a3202fb5fbe02bd7f3e3fbf8432ef6c996e63a89f8b02bad111b9582866eda2a389da50e52acf2271366bda124bec8feafbd66c050b5825c728137d04d62276dff4c986131d89a5da94960e0c79538f2767fcf514a780d85119bf4e2023f251";
+    this.databaseId = "default";
+    this.collectionId = "markdowns";
     this.session = null;
     this.user = null;
   }
@@ -15,7 +15,8 @@ class AppwriteClient {
     const defaultHeaders = {
       'Content-Type': 'application/json',
       'X-Appwrite-Project': this.projectId,
-      'Accept': 'application/json'
+      'Accept': 'application/json',
+      'User-Agent': 'AmazonProductExporter/2.0'
     };
 
     if (this.session) {
@@ -31,45 +32,58 @@ class AppwriteClient {
       options.body = JSON.stringify(data);
     }
 
-    console.log(`Appwrite Request: ${method} ${url}`, data);
+    console.log(`[Appwrite] ${method} ${url}`);
+    console.log('[Appwrite] Data:', data);
 
     try {
       const response = await fetch(url, options);
-      const result = await response.json();
-
-      console.log('Appwrite Response:', response.status, result);
+      const text = await response.text();
+      console.log(`[Appwrite] Response status: ${response.status}`);
+      console.log('[Appwrite] Response body:', text);
+      
+      const result = JSON.parse(text);
 
       if (!response.ok) {
-        throw new Error(result.message || result.code || `Request failed: ${response.status}`);
+        const errorMsg = result.message || result.code || `Request failed: ${response.status}`;
+        console.error('[Appwrite] Error:', errorMsg);
+        throw new Error(errorMsg);
       }
 
       return result;
     } catch (error) {
-      console.error('Appwrite API Error:', error);
+      console.error('[Appwrite] Request failed:', error);
       throw error;
     }
   }
 
   async createAccount(email, password, name) {
+    console.log('[Appwrite] Creating account for:', email);
+    
     const result = await this.request('POST', '/account', {
       email,
       password,
       name
     });
+    
     this.session = result.$id;
     this.user = result;
     await this.saveSession();
+    console.log('[Appwrite] Account created successfully');
     return result;
   }
 
   async createEmailSession(email, password) {
+    console.log('[Appwrite] Creating session for:', email);
+    
     const result = await this.request('POST', '/account/sessions/email', {
       email,
       password
     });
+    
     this.session = result.$id;
     this.user = result;
     await this.saveSession();
+    console.log('[Appwrite] Session created successfully');
     return result;
   }
 
@@ -98,6 +112,7 @@ class AppwriteClient {
         appwriteSession: this.session,
         appwriteUser: this.user
       });
+      console.log('[Appwrite] Session saved');
     }
   }
 
@@ -106,6 +121,7 @@ class AppwriteClient {
     if (result.appwriteSession && result.appwriteUser) {
       this.session = result.appwriteSession;
       this.user = result.appwriteUser;
+      console.log('[Appwrite] Session loaded');
       return true;
     }
     return false;
@@ -115,6 +131,7 @@ class AppwriteClient {
     this.session = null;
     this.user = null;
     await chrome.storage.local.remove(['appwriteSession', 'appwriteUser']);
+    console.log('[Appwrite] Session cleared');
   }
 
   async createDocument(data) {
@@ -145,6 +162,8 @@ class AppwriteClient {
   }
 
   async saveMarkdown(asin, title, content, url, images) {
+    console.log('[Appwrite] Saving markdown for ASIN:', asin);
+    
     const queries = JSON.stringify([
       {
         method: 'equal',
@@ -163,6 +182,7 @@ class AppwriteClient {
 
     if (existingDocs.documents && existingDocs.documents.length > 0) {
       const existingDoc = existingDocs.documents[0];
+      console.log('[Appwrite] Updating existing document:', existingDoc.$id);
       return await this.updateDocument(existingDoc.$id, {
         title,
         content,
@@ -172,6 +192,7 @@ class AppwriteClient {
       });
     }
 
+    console.log('[Appwrite] Creating new document');
     return await this.createDocument({
       asin,
       title,
@@ -205,14 +226,13 @@ let appwriteClient = null;
 
 async function getAppwriteClient() {
   if (!appwriteClient) {
+    appwriteClient = new AppwriteClient();
+    
     try {
-      const response = await fetch(chrome.runtime.getURL('config/appwrite.json'));
-      const config = await response.json();
-      appwriteClient = new AppwriteClient(config);
-      
       await appwriteClient.loadSession();
+      console.log('[Appwrite] Client initialized');
     } catch (error) {
-      console.error('Failed to load Appwrite config:', error);
+      console.error('[Appwrite] Failed to initialize:', error);
     }
   }
   return appwriteClient;
