@@ -231,6 +231,7 @@ async function getAppwriteClient() {
     try {
       await appwriteClient.loadSession();
       console.log('[Appwrite] Client initialized');
+      console.log('[Appwrite] Extension ID:', chrome.runtime.id);
     } catch (error) {
       console.error('[Appwrite] Failed to initialize:', error);
     }
