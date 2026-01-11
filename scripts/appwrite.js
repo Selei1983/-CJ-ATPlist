@@ -14,7 +14,8 @@ class AppwriteClient {
     
     const defaultHeaders = {
       'Content-Type': 'application/json',
-      'X-Appwrite-Project': this.projectId
+      'X-Appwrite-Project': this.projectId,
+      'Accept': 'application/json'
     };
 
     if (this.session) {
@@ -30,12 +31,16 @@ class AppwriteClient {
       options.body = JSON.stringify(data);
     }
 
+    console.log(`Appwrite Request: ${method} ${url}`, data);
+
     try {
       const response = await fetch(url, options);
       const result = await response.json();
 
+      console.log('Appwrite Response:', response.status, result);
+
       if (!response.ok) {
-        throw new Error(result.message || `Request failed: ${response.status}`);
+        throw new Error(result.message || result.code || `Request failed: ${response.status}`);
       }
 
       return result;
@@ -114,7 +119,6 @@ class AppwriteClient {
 
   async createDocument(data) {
     const result = await this.request('POST', `/databases/${this.databaseId}/collections/${this.collectionId}/documents`, {
-      documentId: 'unique()',
       ...data
     });
     return result;
@@ -123,7 +127,7 @@ class AppwriteClient {
   async listDocuments(queries = []) {
     const queryParam = queries.length > 0 ? `?queries=${encodeURIComponent(JSON.stringify(queries))}` : '';
     const result = await this.request('GET', `/databases/${this.databaseId}/collections/${this.collectionId}/documents${queryParam}`);
-    return result;
+    return result.documents;
   }
 
   async getDocument(documentId) {
@@ -141,10 +145,21 @@ class AppwriteClient {
   }
 
   async saveMarkdown(asin, title, content, url, images) {
-    const existingDocs = await this.listDocuments([
-      `equal("asin","${asin}")`,
-      `equal("userId","${this.user.$id}")`
+    const queries = JSON.stringify([
+      {
+        method: 'equal',
+        attribute: 'asin',
+        values: [asin]
+      },
+      {
+        method: 'equal',
+        attribute: 'userId',
+        values: [this.user.$id]
+      }
     ]);
+    
+    const queryParam = `?queries=${encodeURIComponent(queries)}`;
+    const existingDocs = await this.request('GET', `/databases/${this.databaseId}/collections/${this.collectionId}/documents${queryParam}`);
 
     if (existingDocs.documents && existingDocs.documents.length > 0) {
       const existingDoc = existingDocs.documents[0];
@@ -168,9 +183,16 @@ class AppwriteClient {
   }
 
   async getUserMarkdowns() {
-    const result = await this.listDocuments([
-      `equal("userId","${this.user.$id}")`
+    const queries = JSON.stringify([
+      {
+        method: 'equal',
+        attribute: 'userId',
+        values: [this.user.$id]
+      }
     ]);
+    
+    const queryParam = `?queries=${encodeURIComponent(queries)}`;
+    const result = await this.request('GET', `/databases/${this.databaseId}/collections/${this.collectionId}/documents${queryParam}`);
     return result.documents || [];
   }
 
