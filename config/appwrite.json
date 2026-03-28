@@ -1,7 +1,0 @@
-{
-  "endpoint": "https://appwrite.shumitech.com/v1",
-  "projectId": "6963a6d10023ddbd0b80",
-  "apiKey": "standard_b1e50575abbea876f3e1089e9fe9d78a1743e30ff4625c4f251488ade418f54f8a3202fb5fbe02bd7f3e3fbf8432ef6c996e63a89f8b02bad111b9582866eda2a389da50e52acf2271366bda124bec8feafbd66c050b5825c728137d04d62276dff4c986131d89a5da94960e0c79538f2767fcf514a780d85119bf4e2023f251",
-  "databaseId": "default",
-  "collectionId": "markdowns"
-}

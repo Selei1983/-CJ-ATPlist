@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title id="page-title">好物推荐</title>
+  <meta name="description" id="page-desc" content="精选 Amazon 好物推荐">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f8fafc; color: #1e293b; line-height: 1.6; }
+    a { color: #4f46e5; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    .header { background: #fff; border-bottom: 1px solid #e2e8f0; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 10; }
+    .header h1 { font-size: 20px; font-weight: 700; }
+    .header nav a { margin-left: 20px; font-size: 14px; font-weight: 500; }
+
+    .container { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
+
+    .hero { text-align: center; padding: 48px 0 32px; }
+    .hero h2 { font-size: 28px; font-weight: 700; margin-bottom: 12px; }
+    .hero p { font-size: 16px; color: #64748b; max-width: 600px; margin: 0 auto; }
+
+    .collections-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 20px; margin-top: 32px; }
+    .collection-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.1); overflow: hidden; transition: transform .2s, box-shadow .2s; }
+    .collection-card:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,.12); }
+    .collection-card img { width: 100%; height: 180px; object-fit: cover; }
+    .collection-card .card-body { padding: 16px; }
+    .collection-card h3 { font-size: 16px; font-weight: 600; margin-bottom: 8px; }
+    .collection-card p { font-size: 13px; color: #64748b; margin-bottom: 12px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+    .collection-card .card-meta { font-size: 12px; color: #94a3b8; }
+    .collection-card .btn-view { display: inline-block; background: #4f46e5; color: #fff; padding: 8px 20px; border-radius: 6px; font-size: 13px; font-weight: 500; transition: background .2s; }
+    .collection-card .btn-view:hover { background: #4338ca; text-decoration: none; }
+
+    .collection-detail { max-width: 960px; margin: 0 auto; padding: 32px 24px; }
+    .back-link { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; color: #64748b; margin-bottom: 24px; }
+    .back-link:hover { color: #4f46e5; }
+    .detail-header { margin-bottom: 32px; }
+    .detail-header h2 { font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+    .detail-header p { color: #64748b; font-size: 15px; }
+
+    .product-list { display: grid; gap: 16px; }
+    .product-card { background: #fff; border-radius: 10px; box-shadow: 0 1px 3px rgba(0,0,0,.1); padding: 20px; display: flex; gap: 20px; transition: transform .2s; }
+    .product-card:hover { transform: translateY(-1px); }
+    .product-card .product-img { width: 120px; height: 120px; border-radius: 8px; object-fit: cover; flex-shrink: 0; background: #f1f5f9; }
+    .product-card .product-info { flex: 1; }
+    .product-card .product-info h4 { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+    .product-card .product-info .product-asin { font-size: 12px; color: #94a3b8; font-family: monospace; margin-bottom: 8px; }
+    .product-card .product-info .product-price { font-size: 18px; font-weight: 700; color: #4f46e5; margin-bottom: 8px; }
+    .product-card .product-info .product-note { font-size: 13px; color: #64748b; }
+    .product-card .btn-buy { align-self: center; background: #f59e0b; color: #fff; padding: 10px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; white-space: nowrap; transition: background .2s; }
+    .product-card .btn-buy:hover { background: #d97706; text-decoration: none; }
+
+    .empty-state { text-align: center; padding: 64px 24px; color: #94a3b8; }
+    .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+    .footer { text-align: center; padding: 32px 24px; color: #94a3b8; font-size: 13px; border-top: 1px solid #e2e8f0; margin-top: 48px; }
+
+    @media (max-width: 640px) {
+      .product-card { flex-direction: column; }
+      .product-card .product-img { width: 100%; height: 200px; }
+      .hero h2 { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+
+<header class="header">
+  <h1>🎁 好物推荐</h1>
+  <nav>
+    <a href="#/">首页</a>
+  </nav>
+</header>
+
+<div id="app"></div>
+
+<footer class="footer">
+  <p>© 2026 CJ-ATPlist · Amazon 联盟营销推荐平台</p>
+  <p style="margin-top:4px">作为 Amazon 合作伙伴，我们通过符合条件的购买赚取佣金</p>
+</footer>
+
+<script>
+const API = '/api/public';
+
+async function api(method, path, body) {
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(API + path, opts);
+  return res.json();
+}
+
+function router() {
+  const hash = location.hash || '#/';
+  if (hash === '#/' || hash === '#') {
+    renderCollectionsList();
+  } else if (hash.startsWith('#/collection/')) {
+    const slug = hash.replace('#/collection/', '');
+    renderCollectionDetail(slug);
+  } else {
+    renderCollectionsList();
+  }
+}
+
+async function renderCollectionsList() {
+  const app = document.getElementById('app');
+  app.innerHTML = '<div class="container"><div class="hero"><h2>精选好物推荐</h2><p>为你精心挑选的 Amazon 商品推荐合集</p></div><div class="collections-grid" id="grid"><div class="empty-state"><div class="icon">⏳</div>加载中...</div></div></div>';
+
+  try {
+    const res = await api('GET', '/collections');
+    const grid = document.getElementById('grid');
+
+    if (!res.success || !res.collections || res.collections.length === 0) {
+      grid.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>暂无推荐合集，请稍后再来</p></div>';
+      return;
+    }
+
+    grid.innerHTML = res.collections.map(c => `
+      <div class="collection-card">
+        ${c.coverImage ? `<img src="${c.coverImage}" alt="${c.title}" />` : '<div style="height:180px;background:linear-gradient(135deg,#667eea,#764ba2);display:flex;align-items:center;justify-content:center;color:#fff;font-size:32px">🎁</div>'}
+        <div class="card-body">
+          <h3>${escHtml(c.title)}</h3>
+          <p>${escHtml(c.description || '')}</p>
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <span class="card-meta">${c.products || 0} 件商品</span>
+            <a href="#/collection/${c.slug}" class="btn-view">查看详情</a>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  } catch (e) {
+    document.getElementById('grid').innerHTML = '<div class="empty-state"><div class="icon">⚠️</div><p>加载失败，请稍后重试</p></div>';
+  }
+}
+
+async function renderCollectionDetail(slug) {
+  const app = document.getElementById('app');
+  app.innerHTML = '<div class="collection-detail"><a href="#/" class="back-link">← 返回首页</a><div id="detail"><div class="empty-state"><div class="icon">⏳</div>加载中...</div></div></div>';
+
+  try {
+    const res = await api('GET', '/collections/' + encodeURIComponent(slug));
+    const detail = document.getElementById('detail');
+
+    if (!res.success || !res.collection) {
+      detail.innerHTML = '<div class="empty-state"><div class="icon">🔍</div><p>合集不存在或已下架</p><a href="#/" style="margin-top:12px;display:inline-block">返回首页</a></div>';
+      return;
+    }
+
+    const c = res.collection;
+
+    if (c.seoTitle) document.getElementById('page-title').textContent = c.seoTitle;
+    if (c.seoDescription) document.getElementById('page-desc').setAttribute('content', c.seoDescription);
+
+    let html = `
+      <div class="detail-header">
+        ${c.coverImage ? `<img src="${c.coverImage}" style="width:100%;max-height:300px;object-fit:cover;border-radius:10px;margin-bottom:20px" />` : ''}
+        <h2>${escHtml(c.title)}</h2>
+        <p>${escHtml(c.description || '')}</p>
+      </div>
+    `;
+
+    if (res.products && res.products.length > 0) {
+      html += '<div class="product-list">';
+      res.products.forEach(p => {
+        const img = (p.images && p.images.length > 0) ? p.images[0] : '';
+        html += `
+          <div class="product-card">
+            ${img ? `<img class="product-img" src="${escHtml(img)}" alt="${escHtml(p.title)}" />` : '<div class="product-img" style="display:flex;align-items:center;justify-content:center;font-size:28px">📦</div>'}
+            <div class="product-info">
+              <h4>${escHtml(p.title)}</h4>
+              <div class="product-asin">ASIN: ${escHtml(p.asin)}</div>
+              ${p.price ? `<div class="product-price">${escHtml(p.price)}</div>` : ''}
+              ${p.note ? `<div class="product-note">${escHtml(p.note)}</div>` : ''}
+            </div>
+            <a href="${escHtml(p.url || '#')}" target="_blank" rel="nofollow noopener" class="btn-buy" onclick="trackClick('${p.id}', '${c.id}', '${escHtml(p.url || '')}')">
+              在 Amazon 查看
+            </a>
+          </div>
+        `;
+      });
+      html += '</div>';
+    } else {
+      html += '<div class="empty-state"><div class="icon">📭</div><p>暂无商品</p></div>';
+    }
+
+    detail.innerHTML = html;
+  } catch (e) {
+    document.getElementById('detail').innerHTML = '<div class="empty-state"><div class="icon">⚠️</div><p>加载失败</p></div>';
+  }
+}
+
+function trackClick(productId, collectionId, url) {
+  api('POST', '/click', { productId, collectionId, affiliateUrl: url, referrer: document.referrer });
+}
+
+function escHtml(str) {
+  if (!str) return '';
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+window.addEventListener('hashchange', router);
+window.addEventListener('load', router);
+</script>
+</body>
+</html>

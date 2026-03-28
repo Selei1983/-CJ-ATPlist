@@ -2,6 +2,7 @@
 *.zip
 *.pyc
 __pycache__/
+nul
 
 # 操作系统文件
 .DS_Store
@@ -14,6 +15,15 @@ desktop.ini
 *.swp
 *.swo
 
-# 构建产物
-dist/
-build/
+# Node.js
+node_modules/
+package-lock.json
+
+# 构建产物（admin和site的dist需要提交）
+*.log
+
+# 数据库文件
+server/data/
+
+# 敏感文件
+.env
