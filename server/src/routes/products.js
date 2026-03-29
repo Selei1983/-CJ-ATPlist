@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Product = require('../models/product');
-const { authMiddleware } = require('./auth');
+const { authMiddleware } = require('../middleware/auth');
 
 router.get('/', authMiddleware, (req, res) => {
   try {

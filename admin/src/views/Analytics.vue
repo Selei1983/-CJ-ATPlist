@@ -1,70 +1,86 @@
 <template>
   <div>
-    <div class="topbar">
-      <h1>数据分析</h1>
-      <div class="topbar-actions">
-        <button class="btn btn-outline" @click="loadData">🔄 刷新</button>
-      </div>
-    </div>
-    <div class="content">
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-value">{{ stats.totalClicks || 0 }}</div>
-          <div class="stat-label">总点击量</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value">{{ stats.clicks7d || 0 }}</div>
-          <div class="stat-label">近 7 天点击</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value">{{ stats.clicks30d || 0 }}</div>
-          <div class="stat-label">近 30 天点击</div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-value">{{ stats.totalProducts || 0 }}</div>
-          <div class="stat-label">商品总数</div>
-        </div>
-      </div>
+    <el-row :gutter="20" style="margin-bottom:28px">
+      <el-col :span="6">
+        <el-card shadow="hover" class="stat-card" body-style="padding:24px">
+          <div class="value">{{ stats.totalClicks || 0 }}</div>
+          <div class="label">总点击量</div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="hover" class="stat-card" body-style="padding:24px">
+          <div class="value">{{ stats.clicks7d || 0 }}</div>
+          <div class="label">近 7 天</div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="hover" class="stat-card" body-style="padding:24px">
+          <div class="value">{{ stats.clicks30d || 0 }}</div>
+          <div class="label">近 30 天</div>
+        </el-card>
+      </el-col>
+      <el-col :span="6">
+        <el-card shadow="hover" class="stat-card" body-style="padding:24px">
+          <div class="value">{{ stats.totalProducts || 0 }}</div>
+          <div class="label">商品总数</div>
+        </el-card>
+      </el-col>
+    </el-row>
 
-      <div class="card">
-        <div class="card-header"><h2>热门商品 TOP 10</h2></div>
-        <table v-if="stats.topProducts?.length">
-          <thead>
-            <tr><th>ASIN</th><th>标题</th><th>点击量</th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="p in stats.topProducts" :key="p.product_id">
-              <td><code>{{ p.asin || '-' }}</code></td>
-              <td>{{ p.title || '-' }}</td>
-              <td>{{ p.clicks }}</td>
-            </tr>
-          </tbody>
-        </table>
-        <div v-else class="empty-state">暂无数据</div>
-      </div>
-
-      <div class="card">
-        <div class="card-header"><h2>每日点击趋势（近30天）</h2></div>
-        <div v-if="stats.dailyClicks?.length" style="padding:8px 0">
-          <div v-for="d in stats.dailyClicks" :key="d.date" style="display:flex;align-items:center;gap:12px;margin-bottom:6px">
-            <span style="width:100px;font-size:13px;color:var(--text-secondary)">{{ d.date }}</span>
-            <div style="background:var(--primary);height:20px;border-radius:4px;min-width:2px" :style="{ width: barWidth(d.count) + 'px' }"></div>
-            <span style="font-size:13px;font-weight:600">{{ d.count }}</span>
+    <el-row :gutter="20">
+      <el-col :span="14">
+        <el-card>
+          <template #header>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="font-weight:600;font-size:14px">每日点击趋势</span>
+              <el-button text size="small" @click="loadData">
+                <el-icon><Refresh /></el-icon> 刷新
+              </el-button>
+            </div>
+          </template>
+          <div v-if="stats.dailyClicks?.length" class="chart-container">
+            <div v-for="d in stats.dailyClicks" :key="d.date" class="click-bar">
+              <span class="date">{{ d.date.slice(5) }}</span>
+              <div class="bar-track">
+                <div class="bar-fill" :style="{ width: barPercent(d.count) + '%' }"></div>
+              </div>
+              <span class="count">{{ d.count }}</span>
+            </div>
           </div>
-        </div>
-        <div v-else class="empty-state">暂无数据</div>
-      </div>
-    </div>
+          <el-empty v-else description="暂无数据" :image-size="48" />
+        </el-card>
+      </el-col>
+      <el-col :span="10">
+        <el-card>
+          <template #header>
+            <span style="font-weight:600;font-size:14px">热门商品 TOP 10</span>
+          </template>
+          <div v-if="stats.topProducts?.length" class="top-products">
+            <div v-for="(p, i) in stats.topProducts" :key="p.asin" class="top-product-item">
+              <div class="rank">{{ i + 1 }}</div>
+              <div class="top-product-info">
+                <div class="top-product-title">{{ p.title || p.asin }}</div>
+                <el-tag size="small" type="info" style="font-size:11px">{{ p.asin || '-' }}</el-tag>
+              </div>
+              <div class="top-product-clicks">{{ p.clicks }}</div>
+            </div>
+          </div>
+          <el-empty v-else description="暂无数据" :image-size="48" />
+        </el-card>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted } from 'vue';
+import { Refresh } from '@element-plus/icons-vue';
 import { admin } from '../api';
 
 const stats = ref({});
+
 const maxClick = () => Math.max(...(stats.value.dailyClicks?.map(d => d.count) || [1]), 1);
-const barWidth = (count) => Math.max(2, (count / maxClick()) * 300);
+const barPercent = (count) => Math.max(1, (count / maxClick()) * 100);
 
 async function loadData() {
   try {

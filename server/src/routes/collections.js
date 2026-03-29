@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const Collection = require('../models/collection');
-const { authMiddleware } = require('./auth');
+const { authMiddleware } = require('../middleware/auth');
 
 router.get('/', authMiddleware, (req, res) => {
   try {

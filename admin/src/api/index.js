@@ -32,6 +32,13 @@ export const admin = {
   deleteUser: (id) => api.delete(`/admin/users/${id}`),
 };
 
+export const apiKeys = {
+  list: () => api.get('/api-keys'),
+  create: (name) => api.post('/api-keys', { name }),
+  revoke: (id) => api.put(`/api-keys/${id}/revoke`),
+  remove: (id) => api.delete(`/api-keys/${id}`),
+};
+
 export const pub = {
   settings: () => api.get('/public/settings'),
 };

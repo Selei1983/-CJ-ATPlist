@@ -1,49 +1,39 @@
 <template>
-  <div class="login-page">
-    <div class="login-card">
-      <h2>CJ-ATPlist</h2>
-      <p style="text-align:center;color:var(--text-secondary);margin-bottom:24px">Amazon 联盟营销管理后台</p>
-
-      <div v-if="!isRegister">
-        <div class="form-group">
-          <label>邮箱</label>
-          <input v-model="email" type="email" placeholder="请输入邮箱" @keyup.enter="handleLogin" />
-        </div>
-        <div class="form-group">
-          <label>密码</label>
-          <input v-model="password" type="password" placeholder="请输入密码" @keyup.enter="handleLogin" />
-        </div>
-        <button class="btn btn-primary" @click="handleLogin" :disabled="loading">
-          {{ loading ? '登录中...' : '登录' }}
-        </button>
-        <p style="text-align:center;margin-top:16px;font-size:13px;color:var(--text-secondary)">
-          没有账号？<a href="#" @click.prevent="isRegister = true">注册</a>
-        </p>
+  <div class="login-container">
+    <el-card class="login-card" shadow="always">
+      <div class="login-header">
+        <h2>CJ-ATPlist</h2>
+        <p>Amazon 联盟营销管理平台</p>
       </div>
-
-      <div v-else>
-        <div class="form-group">
-          <label>用户名</label>
-          <input v-model="name" placeholder="请输入用户名" />
-        </div>
-        <div class="form-group">
-          <label>邮箱</label>
-          <input v-model="email" type="email" placeholder="请输入邮箱" />
-        </div>
-        <div class="form-group">
-          <label>密码</label>
-          <input v-model="password" type="password" placeholder="至少6位" />
-        </div>
-        <button class="btn btn-primary" @click="handleRegister" :disabled="loading">
-          {{ loading ? '注册中...' : '注册' }}
-        </button>
-        <p style="text-align:center;margin-top:16px;font-size:13px;color:var(--text-secondary)">
-          已有账号？<a href="#" @click.prevent="isRegister = false">登录</a>
-        </p>
-      </div>
-
-      <div v-if="error" class="error-msg">{{ error }}</div>
-    </div>
+      <el-tabs v-model="activeTab" stretch>
+        <el-tab-pane label="登录" name="login">
+          <el-form :model="loginForm" @submit.prevent="handleLogin" label-position="top" style="margin-top:8px">
+            <el-form-item label="邮箱">
+              <el-input v-model="loginForm.email" type="email" placeholder="name@example.com" :prefix-icon="Message" size="large" />
+            </el-form-item>
+            <el-form-item label="密码">
+              <el-input v-model="loginForm.password" type="password" placeholder="输入密码" show-password :prefix-icon="Lock" size="large" @keyup.enter="handleLogin" />
+            </el-form-item>
+            <el-button type="primary" style="width:100%;margin-top:8px" size="large" :loading="loading" @click="handleLogin">登录</el-button>
+          </el-form>
+        </el-tab-pane>
+        <el-tab-pane label="注册" name="register">
+          <el-form :model="registerForm" @submit.prevent="handleRegister" label-position="top" style="margin-top:8px">
+            <el-form-item label="用户名">
+              <el-input v-model="registerForm.name" placeholder="你的名字" :prefix-icon="User" size="large" />
+            </el-form-item>
+            <el-form-item label="邮箱">
+              <el-input v-model="registerForm.email" type="email" placeholder="name@example.com" :prefix-icon="Message" size="large" />
+            </el-form-item>
+            <el-form-item label="密码">
+              <el-input v-model="registerForm.password" type="password" placeholder="至少6位" show-password :prefix-icon="Lock" size="large" />
+            </el-form-item>
+            <el-button type="primary" style="width:100%;margin-top:8px" size="large" :loading="loading" @click="handleRegister">注册</el-button>
+          </el-form>
+        </el-tab-pane>
+      </el-tabs>
+      <el-alert v-if="error" :title="error" type="error" show-icon :closable="false" style="margin-top:16px" />
+    </el-card>
   </div>
 </template>
 
@@ -51,33 +41,54 @@
 import { ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '../stores/user';
+import { Message, Lock, User } from '@element-plus/icons-vue';
 
 const router = useRouter();
 const store = useUserStore();
 
-const email = ref('');
-const password = ref('');
-const name = ref('');
+const activeTab = ref('login');
 const loading = ref(false);
 const error = ref('');
-const isRegister = ref(false);
+
+const loginForm = ref({ email: '', password: '' });
+const registerForm = ref({ name: '', email: '', password: '' });
 
 async function handleLogin() {
-  if (!email.value || !password.value) { error.value = '请填写邮箱和密码'; return; }
-  loading.value = true; error.value = '';
+  if (!loginForm.value.email || !loginForm.value.password) {
+    error.value = '请填写邮箱和密码';
+    return;
+  }
+  loading.value = true;
+  error.value = '';
   try {
-    await store.login(email.value, password.value);
+    await store.login(loginForm.value.email, loginForm.value.password);
     router.push('/dashboard');
-  } catch (e) { error.value = e.error || '登录失败'; } finally { loading.value = false; }
+  } catch (e) {
+    error.value = e.error || '登录失败';
+  } finally {
+    loading.value = false;
+  }
 }
 
 async function handleRegister() {
-  if (!name.value || !email.value || !password.value) { error.value = '请填写所有字段'; return; }
-  if (password.value.length < 6) { error.value = '密码至少6位'; return; }
-  loading.value = true; error.value = '';
+  const f = registerForm.value;
+  if (!f.name || !f.email || !f.password) {
+    error.value = '请填写所有字段';
+    return;
+  }
+  if (f.password.length < 6) {
+    error.value = '密码至少6位';
+    return;
+  }
+  loading.value = true;
+  error.value = '';
   try {
-    await store.register(email.value, password.value, name.value);
+    await store.register(f.email, f.password, f.name);
     router.push('/dashboard');
-  } catch (e) { error.value = e.error || '注册失败'; } finally { loading.value = false; }
+  } catch (e) {
+    error.value = e.error || '注册失败';
+  } finally {
+    loading.value = false;
+  }
 }
 </script>

@@ -1,0 +1,13 @@
+services:
+  cj-atplist:
+    build: .
+    container_name: cj-atplist
+    restart: unless-stopped
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./data:/app/server/data
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - JWT_SECRET=change-this-to-a-random-secret

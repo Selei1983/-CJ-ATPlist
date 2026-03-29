@@ -18,6 +18,7 @@ const routes = [
       { path: 'collections', name: 'Collections', component: () => import('../views/Collections.vue') },
       { path: 'analytics', name: 'Analytics', component: () => import('../views/Analytics.vue'), meta: { admin: true } },
       { path: 'users', name: 'Users', component: () => import('../views/Users.vue'), meta: { admin: true } },
+      { path: 'api-keys', name: 'ApiKeys', component: () => import('../views/ApiKeys.vue') },
     ],
   },
 ];

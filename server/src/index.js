@@ -8,10 +8,12 @@ const productRoutes = require('./routes/products');
 const collectionRoutes = require('./routes/collections');
 const adminRoutes = require('./routes/admin');
 const publicRoutes = require('./routes/public');
+const apiKeyRoutes = require('./routes/apiKeys');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+app.set('trust proxy', 1);
 app.use(cors({ origin: '*', credentials: true }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
@@ -25,6 +27,7 @@ app.use('/api/auth', authRoutes.router);
 app.use('/api/products', productRoutes);
 app.use('/api/collections', collectionRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/api-keys', apiKeyRoutes);
 app.use('/api/public', publicRoutes);
 
 app.get('/api/health', (req, res) => {

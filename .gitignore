@@ -19,7 +19,8 @@ desktop.ini
 node_modules/
 package-lock.json
 
-# 构建产物（admin和site的dist需要提交）
+# 构建产物
+admin/dist/
 *.log
 
 # 数据库文件

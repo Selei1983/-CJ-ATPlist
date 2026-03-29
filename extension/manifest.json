@@ -1,12 +1,15 @@
 {
   "manifest_version": 3,
-  "name": "Amazon 商品信息导出",
-  "version": "2.0",
-  "description": "分析 Amazon 商品页面并导出为 Markdown 文件，支持云端存储",
+  "name": "CJ-ATPlist 商品采集",
+  "version": "3.0",
+  "description": "Amazon 商品数据采集工具，支持一键保存到 CJ-ATPlist 平台",
   "permissions": ["scripting", "activeTab", "sidePanel", "storage"],
   "host_permissions": [
     "https://www.amazon.com/*",
-    "https://appwrite.shumitech.com/*"
+    "https://www.amazon.co.jp/*",
+    "https://www.amazon.co.uk/*",
+    "https://www.amazon.de/*",
+    "http://localhost:3001/*"
   ],
   "icons": {
     "16": "assets/icons/icon16.png",
@@ -22,14 +25,19 @@
       "48": "assets/icons/icon48.png",
       "128": "assets/icons/icon128.png"
     },
-    "default_title": "商品信息导出"
+    "default_title": "CJ-ATPlist 商品采集"
   },
   "side_panel": {
     "default_path": "sidebar.html"
   },
   "content_scripts": [
     {
-      "matches": ["https://www.amazon.com/*"],
+      "matches": [
+        "https://www.amazon.com/*",
+        "https://www.amazon.co.jp/*",
+        "https://www.amazon.co.uk/*",
+        "https://www.amazon.de/*"
+      ],
       "js": ["scripts/content.js"]
     }
   ]

@@ -1,18 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const User = require('../models/user');
-const { generateToken, verifyToken } = require('../middleware/auth');
-
-const authMiddleware = (req, res, next) => {
-  const header = req.headers.authorization;
-  if (!header || !header.startsWith('Bearer ')) {
-    return res.status(401).json({ success: false, error: 'Unauthorized' });
-  }
-  const decoded = verifyToken(header.substring(7));
-  if (!decoded) return res.status(401).json({ success: false, error: 'Invalid token' });
-  req.user = decoded;
-  next();
-};
+const { generateToken, verifyToken, authMiddleware } = require('../middleware/auth');
 
 const adminMiddleware = async (req, res, next) => {
   const user = await User.findById(req.user.userId);
