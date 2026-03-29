@@ -39,8 +39,11 @@ app.get('/admin/*', (req, res) => {
   res.sendFile(path.join(__dirname, '..', '..', 'admin', 'dist', 'index.html'));
 });
 
-app.use('/site', express.static(path.join(__dirname, '..', '..', 'site', 'dist')));
-app.get('/site/*', (req, res) => {
+app.use(express.static(path.join(__dirname, '..', '..', 'site', 'dist')));
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api') || req.path.startsWith('/admin')) {
+    return next();
+  }
   res.sendFile(path.join(__dirname, '..', '..', 'site', 'dist', 'index.html'));
 });
 
@@ -62,7 +65,7 @@ async function start() {
     console.log('========================================');
     console.log(`  API:      http://localhost:${PORT}/api`);
     console.log(`  Admin:    http://localhost:${PORT}/admin`);
-    console.log(`  Site:     http://localhost:${PORT}/site`);
+    console.log(`  Public:   http://localhost:${PORT}/`);
     console.log('========================================');
     console.log('');
   });
